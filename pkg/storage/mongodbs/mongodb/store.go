@@ -11,15 +11,16 @@ See docs/ for more information about the  project.
 package mongodb
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/golang/glog"
 
-	"k8s.io/apiserver/pkg/storage/mongodbs"
 	"k8s.io/apiserver/pkg/storage/mongodbs/client"
 
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
 
 	"golang.org/x/net/context"
@@ -36,7 +37,11 @@ type store struct {
 }
 
 //New create a mongo store
-func New(sess *mgo.Session, dbName string, codec runtime.Codec) *store {
+func New(sess *mgo.Session, dbName string, codec runtime.Codec) storage.Interface {
+	return newStore(sess, dbName, codec)
+}
+
+func newStore(sess *mgo.Session, dbName string, codec runtime.Codec) *store {
 	versioner := APIObjectVersioner{}
 	return &store{
 		codec:     codec,
@@ -110,7 +115,7 @@ func (s *store) Delete(ctx context.Context, key string, out runtime.Object, prec
 	return nil
 }
 
-func (s *store) Get(ctx context.Context, key string, out runtime.Object, ignoreNotFound bool) error {
+func (s *store) Get(ctx context.Context, key string, resourceVersion string, out runtime.Object, ignoreNotFound bool) error {
 
 	c, err := GetCollection(s.dbname, s.session, out)
 	if err != nil {
@@ -125,8 +130,8 @@ func (s *store) Get(ctx context.Context, key string, out runtime.Object, ignoreN
 	return s.getObject(meta, key, out, ignoreNotFound)
 }
 
-func (s *store) GetToList(ctx context.Context, key string, p storage.SelectionPredicate, listObj runtime.Object) error {
-	listPtr, itemPtrObj, err := storagehelper.GetListItemObj(listObj)
+func (s *store) GetToList(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate, listObj runtime.Object) error {
+	listPtr, itemPtrObj, err := GetListItemObj(listObj)
 	if err != nil {
 		return storage.NewInvalidObjError(key, err.Error())
 	}
@@ -156,7 +161,19 @@ func (s *store) GetToList(ctx context.Context, key string, p storage.SelectionPr
 	return decodeList(result, listPtr, s.codec, s.versioner)
 }
 
-func (s *store) GuaranteedUpdate(ctx context.Context, key string, out runtime.Object, ignoreNotFound bool, precondtions *storage.Preconditions, tryUpdate mongodbs.UpdateFunc) error {
+func (s *store) List(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate, listObj runtime.Object) error {
+	return s.GetToList(ctx, key, resourceVersion, p, listObj)
+}
+
+func (s *store) Watch(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate) (watch.Interface, error) {
+	return nil, storage.NewInternalError(fmt.Sprintf("the backend of mysql not support wath"))
+}
+
+func (s *store) WatchList(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate) (watch.Interface, error) {
+	return nil, storage.NewInternalError(fmt.Sprintf("the backend of mysql not support wath"))
+}
+
+func (s *store) GuaranteedUpdate(ctx context.Context, key string, out runtime.Object, ignoreNotFound bool, precondtions *storage.Preconditions, tryUpdate storage.UpdateFunc, suggestion ...runtime.Object) error {
 
 	c, err := GetCollection(s.dbname, s.session, out)
 	if err != nil {
@@ -248,7 +265,7 @@ func (s *store) getObject(meta *client.RequestMeta, key string, out runtime.Obje
 		if ignoreNotFound {
 			return runtime.SetZeroValue(out)
 		}
-		return storage.NewItemNotFoundError(key)
+		return storage.NewKeyNotFoundError(key, 0)
 	}
 
 	return decode(s.codec, s.versioner, docObj.Object, out)
@@ -268,10 +285,15 @@ func getDoc(meta *client.RequestMeta, key string) (*DocObject, error) {
 	return &docObj, nil
 }
 
-func userUpdate(input runtime.Object, userUpdate mongodbs.UpdateFunc) (output runtime.Object, ttl *uint64, err error) {
-	ret, ttl, err := userUpdate(input)
+func userUpdate(input runtime.Object, userUpdate storage.UpdateFunc) (output runtime.Object, ttl *uint64, err error) {
+	ret, ttl, err := userUpdate(input, storage.ResponseMeta{})
 	if err != nil {
 		return nil, nil, err
 	}
 	return ret, ttl, nil
+}
+
+// Count returns number of different entries under the key (generally being path prefix).
+func (s *store) Count(key string) (int64, error) {
+	return 0, nil
 }

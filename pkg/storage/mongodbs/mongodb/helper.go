@@ -12,9 +12,11 @@ package mongodb
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
@@ -152,9 +154,9 @@ func Condition(meta *client.RequestMeta, condition *client.QueryMetaData, p stor
 		fieldsSelectorToCondition(p.Field.String(), selector, condition)
 	}
 
-	if p.Page != nil && !p.Page.Empty() {
-		pagerToCondition(meta, p.Page, condition)
-	}
+	// if p.Page != nil && !p.Page.Empty() {
+	// 	pagerToCondition(meta, p.Page, condition)
+	// }
 	return nil
 }
 
@@ -169,4 +171,24 @@ func GetObjKind(objPtr runtime.Object) string {
 		kind = kind[i+1:]
 	}
 	return kind
+}
+
+func GetListItemObj(listObj runtime.Object) (listPtr interface{}, itemObj runtime.Object, err error) {
+	listPtr, err = meta.GetItemsPtr(listObj)
+	if err != nil {
+		return
+	}
+
+	items, err := conversion.EnforcePtr(listPtr)
+	if err != nil {
+		return
+	}
+	if items.Kind() != reflect.Slice {
+		err = fmt.Errorf("object(%v) not a slice", items.Kind())
+		return
+	}
+
+	itemObj = reflect.New(items.Type().Elem()).Interface().(runtime.Object)
+
+	return
 }

@@ -15,10 +15,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/apiserver/pkg/storage/awsdynamodb"
-
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -42,8 +41,12 @@ type store struct {
 	table     string
 }
 
+func New(sess *session.Session, table string, codec runtime.Codec) storage.Interface {
+	return newStore(sess, table, codec)
+}
+
 //New create a mongo store
-func New(sess *session.Session, table string, codec runtime.Codec) *store {
+func newStore(sess *session.Session, table string, codec runtime.Codec) *store {
 	versioner := APIObjectVersioner{}
 	db := awsdb.New(sess)
 
@@ -141,12 +144,12 @@ func (s *store) Delete(ctx context.Context, key string, out runtime.Object, prec
 	return s.getObject(key, out, false, resp.Attributes)
 }
 
-func (s *store) Get(ctx context.Context, key string, out runtime.Object, ignoreNotFound bool) error {
+func (s *store) Get(ctx context.Context, key string, resourceVersion string, out runtime.Object, ignoreNotFound bool) error {
 	_, err := s.queryObjByKey(key, out, ignoreNotFound)
 	return err
 }
 
-func (s *store) GetToList(ctx context.Context, key string, p storage.SelectionPredicate, listObj runtime.Object) error {
+func (s *store) GetToList(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate, listObj runtime.Object) error {
 	listPtr, itemPtr, err := GetListItemObj(listObj)
 	if err != nil {
 		return storage.NewInvalidObjError(key, err.Error())
@@ -167,14 +170,15 @@ func (s *store) GetToList(ctx context.Context, key string, p storage.SelectionPr
 	scanParam = &awsdb.ScanInput{
 		TableName: aws.String(s.table),
 	}
-	hasPage, perPage, skip := p.BuildPagerCondition(uint64(*output.Count))
-	var requirePage uint64 = 1
-	if hasPage && perPage != 0 {
-		limit := int64(perPage)
-		scanParam.Limit = &(limit)
-		requirePage = skip/perPage + 1
-		glog.V(9).Infof("require pagination limit(%v) skip(%v) perpage(%v) require page(%v)\r\n", limit, skip, perPage, requirePage)
-	}
+	//FIX ME.
+	// hasPage, perPage, skip := p.BuildPagerCondition(uint64(*output.Count))
+	// var requirePage uint64 = 1
+	// if hasPage && perPage != 0 {
+	// 	limit := int64(perPage)
+	// 	scanParam.Limit = &(limit)
+	// 	requirePage = skip/perPage + 1
+	// 	glog.V(9).Infof("require pagination limit(%v) skip(%v) perpage(%v) require page(%v)\r\n", limit, skip, perPage, requirePage)
+	// }
 
 	filter, expressionAttrName, expressionAttrValue := BuildScanFilterAttr(itemPtr, p)
 
@@ -195,8 +199,9 @@ func (s *store) GetToList(ctx context.Context, key string, p storage.SelectionPr
 	var pageNum uint64 = 0
 	err = s.dbHandler.ScanPages(scanParam, func(page *awsdb.ScanOutput, last bool) bool {
 		pageNum++
+		requirePage := 1
 		glog.V(9).Infof("Get page number %v require page %v\r\n", pageNum, requirePage)
-		if pageNum == requirePage {
+		if pageNum == uint64(requirePage) {
 			output = page
 			return false
 		}
@@ -219,7 +224,19 @@ func (s *store) GetToList(ctx context.Context, key string, p storage.SelectionPr
 	return decodeList(jsonData, listPtr, s.codec, s.versioner)
 }
 
-func (s *store) GuaranteedUpdate(ctx context.Context, key string, out runtime.Object, ignoreNotFound bool, precondtions *storage.Preconditions, tryUpdate awsdynamodb.UpdateFunc) error {
+func (s *store) List(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate, listObj runtime.Object) error {
+	return s.GetToList(ctx, key, resourceVersion, p, listObj)
+}
+
+func (s *store) Watch(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate) (watch.Interface, error) {
+	return nil, storage.NewInternalError(fmt.Sprintf("the backend of mysql not support wath"))
+}
+
+func (s *store) WatchList(ctx context.Context, key string, resourceVersion string, p storage.SelectionPredicate) (watch.Interface, error) {
+	return nil, storage.NewInternalError(fmt.Sprintf("the backend of mysql not support wath"))
+}
+
+func (s *store) GuaranteedUpdate(ctx context.Context, key string, out runtime.Object, ignoreNotFound bool, precondtions *storage.Preconditions, tryUpdate storage.UpdateFunc, suggestion ...runtime.Object) error {
 	//check item with this key exist,we need replace this by aws PutItem
 	_, err := s.queryObjByKey(key, out, false)
 	if err != nil {
@@ -343,8 +360,8 @@ func decodeList(elems []map[string]interface{}, ListPtr interface{}, codec runti
 	return nil
 }
 
-func userUpdate(input runtime.Object, userUpdate awsdynamodb.UpdateFunc, attributeValues map[string]interface{}) (output runtime.Object, ttl *uint64, err error) {
-	ret, ttl, err := userUpdate(input, attributeValues)
+func userUpdate(input runtime.Object, userUpdate storage.UpdateFunc, attributeValues map[string]interface{}) (output runtime.Object, ttl *uint64, err error) {
+	ret, ttl, err := userUpdate(input, storage.ResponseMeta{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -404,3 +421,8 @@ func (s *store) getObject(key string, out runtime.Object, ignoreNotFound bool, a
 //
 // 	return nil, nil
 // }
+
+// Count returns number of different entries under the key (generally being path prefix).
+func (s *store) Count(key string) (int64, error) {
+	return 0, nil
+}

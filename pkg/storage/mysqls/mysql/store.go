@@ -179,7 +179,7 @@ func (s *store) GuaranteedUpdate(ctx context.Context, key string, out runtime.Ob
 	}
 	table := s.table(ctx, out)
 
-	ret, fields, err := s.userUpdate(out, tryUpdate)
+	ret, _, err := s.userUpdate(out, tryUpdate)
 	if err != nil {
 		glog.V(9).Infof("user update error :%v\r\n", err)
 		return storage.NewInternalErrorf("key %s error:%v", key, err.Error())
@@ -187,7 +187,7 @@ func (s *store) GuaranteedUpdate(ctx context.Context, key string, out runtime.Ob
 
 	if exist {
 		//build update fields
-		update := make(map[string]interface{})
+		// update := make(map[string]interface{})
 
 		query := fmt.Sprintf("%s = ?", table.resoucekey)
 		args := GetActualResourceKey(key)

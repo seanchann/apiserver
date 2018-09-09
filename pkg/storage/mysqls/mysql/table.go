@@ -529,18 +529,28 @@ func (t *Table) BaseCondition(dbHandle *gorm.DB, p storage.SelectionPredicate, s
 //PageCondition build gorm selection by PageCondition
 func (t *Table) PageCondition(dbHandle *gorm.DB, p storage.SelectionPredicate, totalCount uint64) *gorm.DB {
 
-	hasPage, perPage, skip := p.BuildPagerCondition(uint64(totalCount))
-	if hasPage {
-		limitVal := perPage
-		if limitVal != 0 {
-			dbHandle = dbHandle.Limit(int(limitVal))
-		}
+	// hasPage, perPage, skip := p.BuildPagerCondition(uint64(totalCount))
+	// if hasPage {
+	// 	limitVal := perPage
+	// 	if limitVal != 0 {
+	// 		dbHandle = dbHandle.Limit(int(limitVal))
+	// 	}
 
-		skipVal := skip
-		if skipVal != 0 {
-			dbHandle = dbHandle.Offset(int(skipVal))
-		}
+	// 	skipVal := skip
+	// 	if skipVal != 0 {
+	// 		dbHandle = dbHandle.Offset(int(skipVal))
+	// 	}
+	// }
+
+	limitVal := p.Limit
+	if limitVal != 0 {
+		dbHandle = dbHandle.Limit(int(limitVal))
 	}
+
+	// skipVal := skip
+	// if skipVal != 0 {
+	// 	dbHandle = dbHandle.Offset(int(skipVal))
+	// }
 
 	return dbHandle
 }

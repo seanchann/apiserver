@@ -35,5 +35,5 @@ func newMysqlStorage(c storagebackend.Config) (storage.Interface, DestroyFunc, e
 		client.Close()
 	}
 
-	return mysql.New(client, c.Codec, c.StorageVersion), destroyFunc, nil
+	return mysql.New(client, c.Codec, "v1"), destroyFunc, nil
 }

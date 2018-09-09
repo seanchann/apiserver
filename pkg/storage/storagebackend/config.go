@@ -65,6 +65,36 @@ type Config struct {
 
 	// CountMetricPollPeriod specifies how often should count metric be updated
 	CountMetricPollPeriod time.Duration
+
+	//append backend config.
+	//mongodb extend config
+	Mongodb MongoExtendConfig
+	//aws dynamodb config
+	AWSDynamoDB AWSDynamoDBConfig
+	//mysql config
+	Mysql MysqlConfig
+}
+
+type MongoExtendConfig struct {
+	//holds options for establishing a session with a MongoDB cluster
+	ServerList []string
+	//admin credentials:db,user,pwd
+	AdminCred []string
+	//normal user credentials:db,user,pwd
+	GeneralCred []string
+}
+
+type AWSDynamoDBConfig struct {
+	Region    string
+	Table     string
+	AccessKey string
+	AccessID  string
+	Token     string
+}
+
+type MysqlConfig struct {
+	// ServerList is the list of storage servers to connect with.
+	ServerList []string
 }
 
 func NewDefaultConfig(prefix string, codec runtime.Codec) *Config {
