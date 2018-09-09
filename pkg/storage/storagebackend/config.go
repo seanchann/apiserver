@@ -28,6 +28,10 @@ const (
 	StorageTypeETCD2 = "etcd2"
 	StorageTypeETCD3 = "etcd3"
 
+	StorageTypeMysql       = "mysql"
+	StorageTypeMongoDB     = "mongo"
+	StorageTypeAWSDynamodb = "awsdynamodb"
+
 	DefaultCompactInterval = 5 * time.Minute
 )
 
