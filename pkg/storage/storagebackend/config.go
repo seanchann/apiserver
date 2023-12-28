@@ -34,6 +34,11 @@ const (
 	StorageTypeETCD2 = "etcd2"
 	StorageTypeETCD3 = "etcd3"
 
+	StorageTypeMysql       = "mysql"
+	StorageTypeMongoDB     = "mongo"
+	StorageTypeAWSDynamodb = "awsdynamodb"
+	StorageTypeSqlite      = "sqlite"
+
 	DefaultCompactInterval      = 5 * time.Minute
 	DefaultDBMetricPollInterval = 30 * time.Second
 	DefaultHealthcheckTimeout   = 2 * time.Second
@@ -89,6 +94,16 @@ type Config struct {
 	// StorageObjectCountTracker is used to keep track of the total
 	// number of objects in the storage per resource.
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
+
+	//append backend config.
+	//mongodb extend config
+	Mongodb MongoExtendConfig
+	//aws dynamodb config
+	AWSDynamoDB AWSDynamoDBConfig
+	//mysql config
+	Mysql MysqlConfig
+	//Sqlite sqlite config
+	Sqlite SqliteConfig
 }
 
 // ConfigForResource is a Config specialized to a particular `schema.GroupResource`
@@ -106,6 +121,41 @@ func (config *Config) ForResource(resource schema.GroupResource) *ConfigForResou
 		Config:        *config,
 		GroupResource: resource,
 	}
+}
+
+type MongoExtendConfig struct {
+	//holds options for establishing a session with a MongoDB cluster
+	ServerList []string
+	//admin credentials:db,user,pwd
+	AdminCred []string
+	//normal user credentials:db,user,pwd
+	GeneralCred []string
+}
+
+type AWSDynamoDBConfig struct {
+	Region    string
+	Table     string
+	AccessKey string
+	AccessID  string
+	Token     string
+}
+
+type MysqlConfig struct {
+	// ServerList is the list of storage servers to connect with.
+	ServerList []string
+	Debug      bool
+	//ListDefaultLimit limit list default value
+	ListDefaultLimit int
+}
+
+//SqliteConfig sqlite config
+type SqliteConfig struct {
+	//DSN a dsn  that a sqlite database file with path.
+	//like file:test.db?cache=share&mode=memory we use https://github.com/mattn/go-sqlite3
+	DSN   string
+	Debug bool
+	//ListDefaultLimit limit list default value
+	ListDefaultLimit int
 }
 
 func NewDefaultConfig(prefix string, codec runtime.Codec) *Config {

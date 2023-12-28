@@ -36,6 +36,14 @@ func Create(c storagebackend.ConfigForResource, newFunc, newListFunc func() runt
 		return nil, nil, fmt.Errorf("%s is no longer a supported storage backend", c.Type)
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
 		return newETCD3Storage(c, newFunc, newListFunc, resourcePrefix)
+	case storagebackend.StorageTypeMysql:
+		return newMysqlStorage(c.Config)
+	case storagebackend.StorageTypeMongoDB:
+		return newMongoStorage(c.Config)
+	case storagebackend.StorageTypeAWSDynamodb:
+		return newDynamodbStorage(c.Config)
+	case storagebackend.StorageTypeSqlite:
+		return newSqliteStorage(c.Config)
 	default:
 		return nil, nil, fmt.Errorf("unknown storage type: %s", c.Type)
 	}
