@@ -124,7 +124,10 @@ func (o *RecommendedOptions) ApplyTo(config *server.RecommendedConfig) error {
 	if err != nil {
 		return err
 	}
-	if err := o.Features.ApplyTo(&config.Config, kubeClient, config.SharedInformerFactory); err != nil {
+	// if err := o.Features.ApplyTo(&config.Config, kubeClient, config.SharedInformerFactory); err != nil {
+	// 	return err
+	// }
+	if err := o.Features.ApplyTo(&config.Config); err != nil {
 		return err
 	}
 	initializers, err := o.ExtraAdmissionInitializers(config)

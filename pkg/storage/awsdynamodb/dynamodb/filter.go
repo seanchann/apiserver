@@ -1,12 +1,13 @@
-/*
-
-Copyright 2018 This Project Authors.
-
-Author:  seanchann <seanchann@foxmail.com>
-
-See docs/ for more information about the  project.
-
-*/
+/********************************************************************
+* Copyright (c) 2008 - 2024. seanchann <seanchann.zhou@gmail.com>
+* All rights reserved.
+*
+* PROPRIETARY RIGHTS of the following material in either
+* electronic or paper format pertain to sean.
+* All manufacturing, reproduction, use, and sales involved with
+* this subject MUST conform to the license agreement signed
+* with sean.
+*******************************************************************/
 
 package dynamodb
 
@@ -16,11 +17,11 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/apiserver/pkg/storage"
-	"k8s.io/klog"
 	awsdb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apiserver/pkg/storage"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 	DynamoDBOpNotContains  = "not_contain" //"NOT_CONTAINS"
 )
 
-//TODO: instead of our case statement
+// TODO: instead of our case statement
 type dynamodbOP struct {
 	op        string
 	condition func(expressionNameList []string, op string,
@@ -139,8 +140,8 @@ func fieldToCondition(field string, operator string, value interface{},
 	return condition, nil
 }
 
-//ScanFilterWithFileds range FieldSelector convert into dynamodb scan
-//return string is a slice constain of filter expression for dynamodb
+// ScanFilterWithFileds range FieldSelector convert into dynamodb scan
+// return string is a slice constain of filter expression for dynamodb
 func ScanFilterWithFileds(p storage.SelectionPredicate,
 	expressionAttributeNames map[string]*string,
 	expressionAttributeValues map[string]*awsdb.AttributeValue) (expression []string) {
@@ -188,8 +189,8 @@ func ScanFilterWithFileds(p storage.SelectionPredicate,
 	return expression
 }
 
-//ScanFilterWithFileds range LablesSelector convert into dynamodb scan
-//return string is a slice constain of filter expression for dynamodb
+// ScanFilterWithFileds range LablesSelector convert into dynamodb scan
+// return string is a slice constain of filter expression for dynamodb
 func ScanFilterWithLables(p storage.SelectionPredicate,
 	expressionAttributeNames map[string]*string,
 	expressionAttributeValues map[string]*awsdb.AttributeValue) (expression []string) {

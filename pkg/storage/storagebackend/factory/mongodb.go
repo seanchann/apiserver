@@ -3,14 +3,15 @@ package factory
 import (
 	"time"
 
+	"gopkg.in/mgo.v2"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/mongodbs/mongodb"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	"gopkg.in/mgo.v2"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
-//dial mongo db with admin db, admin user, admin passwd
+// dial mongo db with admin db, admin user, admin passwd
 func newMongoDBClient(cfg storagebackend.MongoExtendConfig) (*mgo.Session, error) {
 	// We need this object to establish a session to our MongoDB.
 	adminDB := cfg.AdminCred[0]
@@ -63,7 +64,7 @@ func newMongoDBClient(cfg storagebackend.MongoExtendConfig) (*mgo.Session, error
 	return mongoSession, nil
 }
 
-func newMongoStorage(c storagebackend.Config) (storage.Interface, DestroyFunc, error) {
+func newMongoStorage(c storagebackend.Config, newFunc, newListFunc func() runtime.Object, resourcePrefix string) (storage.Interface, DestroyFunc, error) {
 
 	client, err := newMongoDBClient(c.Mongodb)
 	if err != nil {

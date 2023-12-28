@@ -1,12 +1,13 @@
-/*
-
-Copyright 2018 This Project Authors.
-
-Author:  seanchann <seanchann@foxmail.com>
-
-See docs/ for more information about the  project.
-
-*/
+/********************************************************************
+* Copyright (c) 2008 - 2024. seanchann <seanchann.zhou@gmail.com>
+* All rights reserved.
+*
+* PROPRIETARY RIGHTS of the following material in either
+* electronic or paper format pertain to sean.
+* All manufacturing, reproduction, use, and sales involved with
+* this subject MUST conform to the license agreement signed
+* with sean.
+*******************************************************************/
 
 package mongodb
 
@@ -60,7 +61,7 @@ func GetCollection(dbName string, sess *mgo.Session, obj runtime.Object) (*Colle
 	return c, nil
 }
 
-//CreateIndex by runtime object
+// CreateIndex by runtime object
 func (c *Collection) CreateIndex(meta *client.RequestMeta) error {
 	err := client.MongoEnsureIndex(meta, c.keyIndex)
 	if err != nil {

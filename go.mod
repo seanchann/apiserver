@@ -5,11 +5,13 @@ module k8s.io/apiserver
 go 1.21
 
 require (
+	github.com/aws/aws-sdk-go v1.49.11
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/emicklei/go-restful/v3 v3.11.0
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/cel-go v0.17.7
 	github.com/google/gnostic-models v0.6.8
@@ -17,6 +19,8 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/jinzhu/gorm v1.9.16
+	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f
 	github.com/spf13/pflag v1.0.5
@@ -40,12 +44,14 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20230726155614-23370e0ffb3e
 	google.golang.org/grpc v1.58.3
 	google.golang.org/protobuf v1.31.0
+	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.0.0-20231220172311-84c476802242
 	k8s.io/apimachinery v0.0.0-20231220171733-60eaa653342b
 	k8s.io/client-go v0.0.0-20231220173006-5a0a4247921d
 	k8s.io/component-base v0.0.0-20231220174245-d65d3c777615
+	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.110.1
 	k8s.io/kms v0.0.0-20231220174908-0e979309a09f
 	k8s.io/kube-openapi v0.0.0-20231113174909-778a5567bc1e
@@ -83,6 +89,8 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

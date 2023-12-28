@@ -1,12 +1,13 @@
-/*
-
-Copyright 2018 This Project Authors.
-
-Author:  seanchann <seanchann@foxmail.com>
-
-See docs/ for more information about the  project.
-
-*/
+/********************************************************************
+* Copyright (c) 2008 - 2024. seanchann <seanchann.zhou@gmail.com>
+* All rights reserved.
+*
+* PROPRIETARY RIGHTS of the following material in either
+* electronic or paper format pertain to sean.
+* All manufacturing, reproduction, use, and sales involved with
+* this subject MUST conform to the license agreement signed
+* with sean.
+*******************************************************************/
 
 package mysql
 
@@ -29,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -46,7 +47,7 @@ type store struct {
 	listDefaultLimit int
 }
 
-//dataModel
+// dataModel
 type dataModel struct {
 	ID        int64  `gorm:"column:id;AUTO_INCREMENT;PRIMARY_KEY"`
 	Name      string `gorm:"column:name;UNIQUE_INDEX:resource_idx"`
@@ -66,7 +67,7 @@ const tableSQL = `CREATE TABLE IF NOT EXISTS %s (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 `
 
-//New create a mysql store
+// New create a mysql store
 func New(client *dbmysql.DB, codec runtime.Codec, version string, defaultLimit int) storage.Interface {
 	return newStore(client, codec, version, defaultLimit)
 }
@@ -381,8 +382,8 @@ func encodeContinue(start, total uint64, resourceVersion int64) (string, error) 
 	return base64.RawURLEncoding.EncodeToString(out), nil
 }
 
-func (s *store) List(ctx context.Context, key string,
-	opts storage.ListOptions, listObj runtime.Object) error {
+// GetList implements storage.Interface.
+func (s *store) GetList(ctx context.Context, key string, opts storage.ListOptions, listObj runtime.Object) error {
 	listPtr, err := meta.GetItemsPtr(listObj)
 	if err != nil {
 		return err
@@ -556,7 +557,7 @@ func appendListItem(v reflect.Value, data []byte, rev uint64, pred storage.Selec
 	return nil
 }
 
-//Count interface count
+// Count interface count
 func (s *store) Count(key string) (int64, error) {
 	resMeta := extractKey(nil, key)
 	kind := resMeta.Kind
@@ -598,4 +599,10 @@ func (s *store) updateObj(obj runtime.Object, userUpdate storage.UpdateFunc) (ru
 		return nil, 0, fmt.Errorf("PrepareObjectForStorage failed: %v", err)
 	}
 	return ret, 0, nil
+}
+
+func (s *store) RequestWatchProgress(ctx context.Context) error {
+	// Use watchContext to match ctx metadata provided when creating the watch.
+	// In best case scenario we would use the same context that watch was created, but there is no way access it from watchCache.
+	return fmt.Errorf("not implemented")
 }

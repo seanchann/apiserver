@@ -1,12 +1,13 @@
-/*
-
-Copyright 2018 This Project Authors.
-
-Author:  seanchann <seanchann@foxmail.com>
-
-See docs/ for more information about the  project.
-
-*/
+/********************************************************************
+* Copyright (c) 2008 - 2024. seanchann <seanchann.zhou@gmail.com>
+* All rights reserved.
+*
+* PROPRIETARY RIGHTS of the following material in either
+* electronic or paper format pertain to sean.
+* All manufacturing, reproduction, use, and sales involved with
+* this subject MUST conform to the license agreement signed
+* with sean.
+*******************************************************************/
 
 package dynamodb
 
@@ -21,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 func BuildScanFilterAttr(objPtr runtime.Object, p storage.SelectionPredicate) (filterExpression string, expressionAttributeNames map[string]*string, expressionAttributeValues map[string]*awsdb.AttributeValue) {

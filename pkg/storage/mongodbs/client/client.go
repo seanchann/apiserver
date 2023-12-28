@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apiserver/pkg/storage"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"

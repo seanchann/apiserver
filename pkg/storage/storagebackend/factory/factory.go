@@ -37,13 +37,13 @@ func Create(c storagebackend.ConfigForResource, newFunc, newListFunc func() runt
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
 		return newETCD3Storage(c, newFunc, newListFunc, resourcePrefix)
 	case storagebackend.StorageTypeMysql:
-		return newMysqlStorage(c.Config)
+		return newMysqlStorage(c.Config, newFunc, newListFunc, resourcePrefix)
 	case storagebackend.StorageTypeMongoDB:
-		return newMongoStorage(c.Config)
+		return newMongoStorage(c.Config, newFunc, newListFunc, resourcePrefix)
 	case storagebackend.StorageTypeAWSDynamodb:
-		return newDynamodbStorage(c.Config)
+		return newDynamodbStorage(c.Config, newFunc, newListFunc, resourcePrefix)
 	case storagebackend.StorageTypeSqlite:
-		return newSqliteStorage(c.Config)
+		return newSqliteStorage(c.Config, newFunc, newListFunc, resourcePrefix)
 	default:
 		return nil, nil, fmt.Errorf("unknown storage type: %s", c.Type)
 	}

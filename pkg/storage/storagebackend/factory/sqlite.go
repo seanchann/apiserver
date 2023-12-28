@@ -1,23 +1,25 @@
-/*
-
-Copyright 2018 This Project Authors.
-
-Author:  seanchann <seanchann@foxmail.com>
-
-See docs/ for more information about the  project.
-
-*/
+/********************************************************************
+* Copyright (c) 2008 - 2024. seanchann <seanchann.zhou@gmail.com>
+* All rights reserved.
+*
+* PROPRIETARY RIGHTS of the following material in either
+* electronic or paper format pertain to sean.
+* All manufacturing, reproduction, use, and sales involved with
+* this subject MUST conform to the license agreement signed
+* with sean.
+*******************************************************************/
 
 package factory
 
 import (
 	"database/sql"
 
+	_ "github.com/mattn/go-sqlite3"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/sqlite"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	"k8s.io/klog"
-	_ "github.com/mattn/go-sqlite3"
+	"k8s.io/klog/v2"
 )
 
 func newSqliteClient(dsn string, debug bool) (*sql.DB, error) {
@@ -35,7 +37,7 @@ func newSqliteClient(dsn string, debug bool) (*sql.DB, error) {
 	return db, db.Ping()
 }
 
-func newSqliteStorage(c storagebackend.Config) (storage.Interface, DestroyFunc, error) {
+func newSqliteStorage(c storagebackend.Config, newFunc, newListFunc func() runtime.Object, resourcePrefix string) (storage.Interface, DestroyFunc, error) {
 	dsn := c.Sqlite.DSN
 
 	client, err := newSqliteClient(dsn, c.Sqlite.Debug)

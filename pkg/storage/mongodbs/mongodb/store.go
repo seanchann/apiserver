@@ -1,12 +1,13 @@
-/*
-
-Copyright 2018 This Project Authors.
-
-Author:  seanchann <seanchann@foxmail.com>
-
-See docs/ for more information about the  project.
-
-*/
+/********************************************************************
+* Copyright (c) 2008 - 2024. seanchann <seanchann.zhou@gmail.com>
+* All rights reserved.
+*
+* PROPRIETARY RIGHTS of the following material in either
+* electronic or paper format pertain to sean.
+* All manufacturing, reproduction, use, and sales involved with
+* this subject MUST conform to the license agreement signed
+* with sean.
+*******************************************************************/
 
 package mongodb
 
@@ -15,7 +16,7 @@ import (
 	"reflect"
 
 	"k8s.io/apiserver/pkg/storage/mongodbs/client"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,7 +36,7 @@ type store struct {
 	dbname    string
 }
 
-//New create a mongo store
+// New create a mongo store
 func New(sess *mgo.Session, dbName string, codec runtime.Codec) storage.Interface {
 	return newStore(sess, dbName, codec)
 }
@@ -162,7 +163,8 @@ func (s *store) GetToList(ctx context.Context, key string, opts storage.ListOpti
 	return decodeList(result, listPtr, s.codec, s.versioner)
 }
 
-func (s *store) List(ctx context.Context, key string, opts storage.ListOptions, listObj runtime.Object) error {
+// GetList implements storage.Interface.
+func (s *store) GetList(ctx context.Context, key string, opts storage.ListOptions, listObj runtime.Object) error {
 	return s.GetToList(ctx, key, opts, listObj)
 }
 
@@ -299,4 +301,10 @@ func userUpdate(input runtime.Object, userUpdate storage.UpdateFunc) (output run
 // Count returns number of different entries under the key (generally being path prefix).
 func (s *store) Count(key string) (int64, error) {
 	return 0, nil
+}
+
+func (s *store) RequestWatchProgress(ctx context.Context) error {
+	// Use watchContext to match ctx metadata provided when creating the watch.
+	// In best case scenario we would use the same context that watch was created, but there is no way access it from watchCache.
+	return fmt.Errorf("not implemented")
 }

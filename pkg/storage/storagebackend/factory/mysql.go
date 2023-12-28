@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"strings"
 
+	_ "github.com/go-sql-driver/mysql"
+	dbmysql "github.com/jinzhu/gorm"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/mysqls/mysql"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	_ "github.com/go-sql-driver/mysql"
 	"k8s.io/klog"
-	dbmysql "github.com/jinzhu/gorm"
 )
 
-//connectionStr: user:password@tcp(host:port)/dbname
+// connectionStr: user:password@tcp(host:port)/dbname
 func newMysqlClient(connectionStr string, debug bool) (*dbmysql.DB, error) {
 	var err error
 	connStr := string(connectionStr) + string("?parseTime=True")
@@ -48,7 +49,7 @@ func newMysqlClient(connectionStr string, debug bool) (*dbmysql.DB, error) {
 	return db, db.DB().Ping()
 }
 
-func newMysqlStorage(c storagebackend.Config) (storage.Interface, DestroyFunc, error) {
+func newMysqlStorage(c storagebackend.Config, newFunc, newListFunc func() runtime.Object, resourcePrefix string) (storage.Interface, DestroyFunc, error) {
 	endpoints := c.Mysql.ServerList
 
 	client, err := newMysqlClient(endpoints[0], c.Mysql.Debug)

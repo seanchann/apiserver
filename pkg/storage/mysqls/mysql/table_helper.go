@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/cache"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -60,7 +60,7 @@ type DBResource struct {
 you must give out a resource key for rest requst
 */
 
-//TableTag indicate table information in current field
+// TableTag indicate table information in current field
 type TableTag struct {
 	column      string            //it is a column name in db
 	tableName   string            //a table name if this field with table tag
@@ -68,7 +68,7 @@ type TableTag struct {
 	structField string
 }
 
-//Table extract table from object
+// Table extract table from object
 type Table struct {
 	name string
 	obj  reflect.Value
@@ -99,7 +99,7 @@ func init() {
 	tableCache = cache.NewLRUExpireCache(maxTableCache)
 }
 
-//FindTableTag scan object field,extract it into TableTag
+// FindTableTag scan object field,extract it into TableTag
 func FindTableTag(typ reflect.Type, index int, t *Table) bool {
 	field := typ.Field(index)
 
@@ -151,9 +151,9 @@ out:
 	return findTable
 }
 
-//BuildTable search tag in obj
-//return the reflect.value of tag
-//return error if has a error
+// BuildTable search tag in obj
+// return the reflect.value of tag
+// return error if has a error
 func BuildTable(obj reflect.Value, t *Table) error {
 
 	vType := obj.Type()
@@ -214,7 +214,7 @@ func parseTag(origin string) TableTag {
 	return tag
 }
 
-//GetTable scan obj tags and get table in obj if exist
+// GetTable scan obj tags and get table in obj if exist
 func GetTable(ctx context.Context, obj runtime.Object) (*Table, error) {
 	v, err := conversion.EnforcePtr(obj)
 	if err != nil {
@@ -259,7 +259,7 @@ func GetTable(ctx context.Context, obj runtime.Object) (*Table, error) {
 	return table, err
 }
 
-//ObjSelectField return talbe column array
+// ObjSelectField return talbe column array
 func (t *Table) ObjSelectField(tableObj reflect.Value) []interface{} {
 	selects := []interface{}{}
 
@@ -270,8 +270,8 @@ func (t *Table) ObjSelectField(tableObj reflect.Value) []interface{} {
 	return selects
 }
 
-//ObjMapField convert obj field into map by filed,if field is nil return all field
-//if ignoreConstField==true. will ignore filed if it has const keyword
+// ObjMapField convert obj field into map by filed,if field is nil return all field
+// if ignoreConstField==true. will ignore filed if it has const keyword
 func (t *Table) ObjMapField(obj reflect.Value, field []string, ignoreConstField bool) map[string]interface{} {
 	update := make(map[string]interface{})
 	if len(field) == 0 {
@@ -299,10 +299,10 @@ func (t *Table) ObjMapField(obj reflect.Value, field []string, ignoreConstField 
 	return update
 }
 
-//AfterFindTable find tableObj in object then call this function
+// AfterFindTable find tableObj in object then call this function
 type AfterFindTable func(tableObj reflect.Value) error
 
-//ExtractTableObj extract table field in obj. passthrough tableObj with afterFunc
+// ExtractTableObj extract table field in obj. passthrough tableObj with afterFunc
 func (t *Table) ExtractTableObj(obj runtime.Object, afterFunc AfterFindTable) error {
 	//tObj := reflect.Value{}
 	//var tObj uintptr
@@ -339,7 +339,7 @@ func (t *Table) ExtractTableObj(obj runtime.Object, afterFunc AfterFindTable) er
 	return fmt.Errorf("runtime object(%v) not found table", v.Type())
 }
 
-//SetTable find talbe field in obj. then set obj field with table value
+// SetTable find talbe field in obj. then set obj field with table value
 func (t *Table) SetTable(obj runtime.Object, table reflect.Value) (string, error) {
 	resourceKeyValue := string("")
 	err := t.ExtractTableObj(obj, func(tObj reflect.Value) error {
@@ -358,8 +358,8 @@ func (t *Table) SetTable(obj runtime.Object, table reflect.Value) (string, error
 	return resourceKeyValue, nil
 }
 
-//CovertRowsToObject update table(reflect.value) into obj(runtime.Object).
-//and  Marshal obj  into row(RowResult)
+// CovertRowsToObject update table(reflect.value) into obj(runtime.Object).
+// and  Marshal obj  into row(RowResult)
 func (t *Table) CovertRowsToObject(row *RowResult, obj runtime.Object, table reflect.Value) error {
 	resourceKeyValue, err := t.SetTable(obj, table)
 	if err != nil {
@@ -380,7 +380,7 @@ func (t *Table) CovertRowsToObject(row *RowResult, obj runtime.Object, table ref
 	return nil
 }
 
-//GetColumnByField get sql column name by struct filed name
+// GetColumnByField get sql column name by struct filed name
 func (t *Table) GetColumnByField(filed string) (column string) {
 	i := strings.LastIndexAny(filed, ".")
 	if i >= 0 {
@@ -401,7 +401,7 @@ func (t *Table) GetColumnByField(filed string) (column string) {
 	return
 }
 
-//ConvertFieldsValue convert struct value to sqlvale
+// ConvertFieldsValue convert struct value to sqlvale
 func (t *Table) ConvertFieldsValue(value string) (sqlValue string) {
 
 	switch value {

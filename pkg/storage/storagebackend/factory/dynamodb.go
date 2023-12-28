@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/awsdynamodb/dynamodb"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
@@ -11,7 +12,7 @@ import (
 	"k8s.io/klog"
 )
 
-//newDynamodbSession create session with config and credentials
+// newDynamodbSession create session with config and credentials
 func newDynamodbSession(cfg storagebackend.AWSDynamoDBConfig) (*session.Session, error) {
 
 	config := aws.Config{
@@ -36,7 +37,7 @@ func newDynamodbSession(cfg storagebackend.AWSDynamoDBConfig) (*session.Session,
 	return sess, nil
 }
 
-func newDynamodbStorage(c storagebackend.Config) (storage.Interface, DestroyFunc, error) {
+func newDynamodbStorage(c storagebackend.Config, newFunc, newListFunc func() runtime.Object, resourcePrefix string) (storage.Interface, DestroyFunc, error) {
 
 	client, err := newDynamodbSession(c.AWSDynamoDB)
 	if err != nil {
