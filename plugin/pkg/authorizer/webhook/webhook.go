@@ -382,7 +382,13 @@ func (t *subjectAccessReviewV1ClientGW) Create(ctx context.Context, subjectAcces
 	restResult := t.client.Post().Body(subjectAccessReview).Do(ctx)
 
 	restResult.StatusCode(&statusCode)
-	err := restResult.Into(result)
+	// err := restResult.Into(result)
+	//FIXME seanchann: Into method must install authorizationv1 api. so disable it
+	rawBody, err := restResult.Raw()
+	if err != nil {
+		return nil, statusCode, err
+	}
+	err = json.Unmarshal(rawBody, result)
 
 	return result, statusCode, err
 }
