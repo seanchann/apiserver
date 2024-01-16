@@ -69,7 +69,7 @@ func New(client *sql.DB, codec runtime.Codec, version string, defaultLimit int) 
 }
 
 func newStore(client *sql.DB, codec runtime.Codec, version string, defaultLimit int) *store {
-	versioner := APIObjectVersioner{}
+	versioner := storage.APIObjectVersioner{}
 	if len(version) == 0 {
 		klog.Fatalln("need give a storage version for sqlite backend")
 	}
@@ -79,7 +79,7 @@ func newStore(client *sql.DB, codec runtime.Codec, version string, defaultLimit 
 
 	_, err := client.Exec(table)
 	if err != nil {
-		klog.Fatalln("create sqlite table failure for sqlite backend err %v", err)
+		klog.Fatalln("create sqlite table failure for sqlite backend err ", err)
 	}
 
 	return &store{
@@ -97,6 +97,7 @@ func (s *store) Versioner() storage.Versioner {
 }
 
 func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object, ttl uint64) error {
+	firstResourceVersion := 1
 
 	if version, err := s.versioner.ObjectResourceVersion(obj); err == nil && version != 0 {
 		return errors.New("resourceVersion should not be set on objects to be created")
@@ -104,10 +105,14 @@ func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object,
 	if err := s.versioner.PrepareObjectForStorage(obj); err != nil {
 		return fmt.Errorf("PrepareObjectForStorage failed: %v", err)
 	}
+	//force set resource version begin with 1
+	if err := s.versioner.UpdateObject(obj, uint64(firstResourceVersion)); err != nil {
+		return fmt.Errorf("PrepareObjectForStorage failed: %v", err)
+	}
 
 	data := &dataModel{
 		Key:      key,
-		Revision: 0,
+		Revision: int64(firstResourceVersion),
 	}
 
 	var err error
@@ -187,11 +192,11 @@ func (s *store) Delete(
 }
 
 func (s *store) Watch(ctx context.Context, key string, opts storage.ListOptions) (watch.Interface, error) {
-	return nil, storage.NewInternalError(fmt.Sprintf("the backend of mysql not support watch"))
+	return nil, storage.NewInternalError("the backend of mysql not support watch")
 }
 
 func (s *store) WatchList(ctx context.Context, key string, opts storage.ListOptions) (watch.Interface, error) {
-	return nil, storage.NewInternalError(fmt.Sprintf("the backend of mysql not support watch"))
+	return nil, storage.NewInternalError("the backend of mysql not support watch")
 }
 
 func (s *store) Get(ctx context.Context, key string, opts storage.GetOptions,
@@ -338,7 +343,7 @@ func (s *store) GuaranteedUpdate(
 
 	oriObject := reflect.New(v.Type()).Interface().(runtime.Object)
 	if oriObject != nil {
-		if err := decode(s.codec, s.versioner, oriData.Obj, oriObject, 0); err != nil {
+		if err := decode(s.codec, s.versioner, oriData.Obj, oriObject, int64(1)); err != nil {
 			return storage.NewInternalErrorf("decode origin data key %s error:%v", key, err.Error())
 		}
 	}
@@ -350,7 +355,8 @@ func (s *store) GuaranteedUpdate(
 	}
 
 	newData := &dataModel{
-		Key: key,
+		Key:      key,
+		Revision: oriData.Revision,
 	}
 	newData.Obj, err = runtime.Encode(s.codec, ret)
 	if err != nil {
@@ -359,7 +365,7 @@ func (s *store) GuaranteedUpdate(
 
 	//data not change do nothing
 	if bytes.Equal(newData.Obj, oriData.Obj) {
-		return decode(s.codec, s.versioner, oriData.Obj, out, 0)
+		return decode(s.codec, s.versioner, oriData.Obj, out, int64(1))
 	}
 
 	stmt, err := s.client.Prepare(createSQL)
@@ -371,7 +377,7 @@ func (s *store) GuaranteedUpdate(
 		return storage.NewInternalErrorf("key %v, transaction update exec error %v", key, err.Error())
 	}
 
-	return decode(s.codec, s.versioner, newData.Obj, out, 0)
+	return decode(s.codec, s.versioner, newData.Obj, out, int64(1))
 }
 
 func (s *store) Count(key string) (int64, error) {

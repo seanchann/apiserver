@@ -21,8 +21,6 @@ import (
 	"reflect"
 	"time"
 
-	"k8s.io/apiserver/pkg/storage/mysqls"
-
 	dbmysql "github.com/jinzhu/gorm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -77,7 +75,9 @@ const (
 )
 
 func newStore(client *dbmysql.DB, codec runtime.Codec, version string, defaultLimit int) *store {
-	versioner := mysqls.APIObjectVersioner{}
+	// versioner := mysqls.APIObjectVersioner{}
+
+	versioner := storage.APIObjectVersioner{}
 	if len(version) == 0 {
 		klog.Fatalln("need give a storage version for mysql backend")
 	}
@@ -116,10 +116,10 @@ func (s *store) Get(ctx context.Context, key string, opts storage.GetOptions, ou
 		return storage.NewKeyNotFoundError(key, 0)
 	}
 
-	query := fmt.Sprintf("name = ? ")
+	query := "name = ? "
 	queryArgs := []interface{}{resource}
 	if len(reqMeta.Namespace) != 0 {
-		query = fmt.Sprintf("name = ? AND namespace = ? ")
+		query = "name = ? AND namespace = ? "
 		queryArgs = []interface{}{resource, reqMeta.Namespace}
 	}
 
@@ -138,10 +138,15 @@ func (s *store) Get(ctx context.Context, key string, opts storage.GetOptions, ou
 }
 
 func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object, ttl uint64) error {
+	firstResourceVersion := 1
 	if version, err := s.versioner.ObjectResourceVersion(obj); err == nil && version != 0 {
 		return errors.New("resourceVersion should not be set on objects to be created")
 	}
 	if err := s.versioner.PrepareObjectForStorage(obj); err != nil {
+		return fmt.Errorf("PrepareObjectForStorage failed: %v", err)
+	}
+	//force set resource version begin with 1
+	if err := s.versioner.UpdateObject(obj, uint64(firstResourceVersion)); err != nil {
 		return fmt.Errorf("PrepareObjectForStorage failed: %v", err)
 	}
 
@@ -163,6 +168,7 @@ func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object,
 	data := &dataModel{
 		Name:      resource,
 		Namespace: reqMeta.Namespace,
+		Revision:  int64(firstResourceVersion),
 	}
 	var err error
 	data.Obj, err = runtime.Encode(s.codec, obj)
@@ -194,10 +200,10 @@ func (s *store) Delete(
 		return storage.NewKeyNotFoundError(key, 0)
 	}
 
-	query := fmt.Sprintf("name = ? ")
+	query := "name = ? "
 	queryArgs := []interface{}{resource}
 	if len(reqMeta.Namespace) != 0 {
-		query = fmt.Sprintf("name = ? AND namespace = ? ")
+		query = "name = ? AND namespace = ? "
 		queryArgs = []interface{}{resource, reqMeta.Namespace}
 	}
 
@@ -224,7 +230,7 @@ func (s *store) Delete(
 		return err
 	}
 
-	query = fmt.Sprintf("id = ? ")
+	query = "id = ? "
 	queryArgs = []interface{}{outData.ID}
 	err = s.client.Table(kind).Where(query, queryArgs...).Delete(dataModel{}).Error
 	if err != nil {
@@ -260,10 +266,10 @@ func (s *store) GuaranteedUpdate(
 		s.createTable(kind)
 	}
 
-	query := fmt.Sprintf("name = ? ")
+	query := "name = ? "
 	queryArgs := []interface{}{resource}
 	if len(reqMeta.Namespace) != 0 {
-		query = fmt.Sprintf("name = ? AND namespace = ? ")
+		query = "name = ? AND namespace = ? "
 		queryArgs = []interface{}{resource, reqMeta.Namespace}
 	}
 
@@ -282,7 +288,7 @@ func (s *store) GuaranteedUpdate(
 
 	oriObject := reflect.New(v.Type()).Interface().(runtime.Object)
 	if oriObject != nil {
-		if err := decode(s.codec, s.versioner, oriData.Obj, oriObject, 0); err != nil {
+		if err := decode(s.codec, s.versioner, oriData.Obj, oriObject, oriData.Revision); err != nil {
 			return storage.NewInternalErrorf("decode origin data key %s error:%v", key, err.Error())
 		}
 	}
@@ -344,13 +350,13 @@ func (s *store) GetToList(ctx context.Context, key string, opts storage.ListOpti
 	}
 
 	if len(data) > 0 {
-		if err := appendListItem(v, data[0].Obj, uint64(0), opts.Predicate, s.codec, s.versioner); err != nil {
+		if err := appendListItem(v, data[0].Obj, uint64(data[0].Revision), opts.Predicate, s.codec, s.versioner); err != nil {
 			return err
 		}
 	}
 
 	// update version with cluster level revision
-	return s.versioner.UpdateList(listObj, uint64(0), "", nil)
+	return s.versioner.UpdateList(listObj, uint64(1), "", nil)
 }
 
 type continueToken struct {
@@ -461,7 +467,7 @@ func (s *store) GetList(ctx context.Context, key string, opts storage.ListOption
 	growSlice(v, 2048, int(limit))
 
 	for _, dataVal := range data {
-		if err := appendListItem(v, dataVal.Obj, uint64(0), opts.Predicate, s.codec, s.versioner); err != nil {
+		if err := appendListItem(v, dataVal.Obj, uint64(dataVal.Revision), opts.Predicate, s.codec, s.versioner); err != nil {
 			return err
 		}
 	}
@@ -474,10 +480,10 @@ func (s *store) GetList(ctx context.Context, key string, opts storage.ListOption
 	if nextSkip != 0 {
 		// continuation
 		c := int64(listCount - skip - limit)
-		return s.versioner.UpdateList(listObj, uint64(0), next, &c)
+		return s.versioner.UpdateList(listObj, uint64(1), next, &c)
 	}
 	// no continuation
-	return s.versioner.UpdateList(listObj, uint64(0), next, nil)
+	return s.versioner.UpdateList(listObj, uint64(1), next, nil)
 }
 
 // growSlice takes a slice value and grows its capacity up
