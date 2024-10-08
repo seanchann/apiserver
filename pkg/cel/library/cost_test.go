@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
+	"github.com/google/cel-go/common/ast"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/ext"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
@@ -1127,10 +1128,10 @@ func TestSize(t *testing.T) {
 	est := &CostEstimator{SizeEstimator: &testCostEstimator{}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var targetNode checker.AstNode = testSizeNode{size: tc.targetSize}
+			var targetNode checker.AstNode = testNode{size: tc.targetSize}
 			argNodes := make([]checker.AstNode, len(tc.argSizes))
 			for i, arg := range tc.argSizes {
-				argNodes[i] = testSizeNode{size: arg}
+				argNodes[i] = testNode{size: arg}
 			}
 			result := est.EstimateCallCost(tc.function, tc.overload, &targetNode, argNodes)
 			if result.ResultSize == nil {
@@ -1188,4 +1189,27 @@ type alwaysAllowAuthorizer struct{}
 
 func (f alwaysAllowAuthorizer) Authorize(ctx context.Context, a authorizer.Attributes) (authorizer.Decision, string, error) {
 	return authorizer.DecisionAllow, "", nil
+}
+
+type testNode struct {
+	size checker.SizeEstimate
+	typ  *types.Type
+}
+
+var _ checker.AstNode = (*testNode)(nil)
+
+func (t testNode) Path() []string {
+	return nil // not needed
+}
+
+func (t testNode) Type() *types.Type {
+	return t.typ // not needed
+}
+
+func (t testNode) Expr() ast.Expr {
+	return nil // not needed
+}
+
+func (t testNode) ComputedSize() *checker.SizeEstimate {
+	return &t.size
 }
