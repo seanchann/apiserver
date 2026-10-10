@@ -14,6 +14,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/go-logr/logr v1.4.4
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-openapi/jsonreference v1.0.2
 	github.com/google/cel-go v0.29.2
 	github.com/google/gnostic-models v0.7.1
@@ -21,6 +22,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
+	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f
 	github.com/spf13/pflag v1.0.10

@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -41,6 +42,7 @@ import (
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
+	auditinternal "k8s.io/apiserver/pkg/apis/audit"
 	"k8s.io/apiserver/pkg/apis/example"
 	examplev1 "k8s.io/apiserver/pkg/apis/example/v1"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -787,4 +789,101 @@ func newGenericAPIServerHandlerChain(t *testing.T, path string, handler http.Han
 
 	s.Handler.NonGoRestfulMux.Handle(path, handler)
 	return s.Handler
+}
+
+// failingStartupAudit reaches the real pre-hook RunWithContext failure path.
+type failingStartupAudit struct{ err error }
+
+func (b failingStartupAudit) Run(<-chan struct{}) error                { return b.err }
+func (failingStartupAudit) Shutdown()                                  {}
+func (failingStartupAudit) String() string                             { return "startup-test" }
+func (failingStartupAudit) ProcessEvents(...*auditinternal.Event) bool { return true }
+
+func TestRunWithContextDrainPrecedesDestroy(t *testing.T) {
+	for _, tc := range []struct {
+		name                          string
+		early, late, legacy, nilDrain bool
+	}{
+		{name: "normal"}, {name: "startup-error", early: true}, {name: "shutdown-hook-error", late: true}, {name: "legacy-default", legacy: true}, {name: "nil-drain", nilDrain: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, a := newMaster(t)
+			l, err := net.Listen("tcp", "127.0.0.1:0")
+			a.NoError(err)
+			defer l.Close()
+			s.SecureServingInfo = &SecureServingInfo{Listener: l}
+			expectedErr := errors.New("lifecycle regression sentinel")
+			if tc.early {
+				s.AuditBackend = failingStartupAudit{expectedErr}
+			}
+			if tc.late {
+				a.NoError(s.AddPreShutdownHook("failing-test", func() error { return expectedErr }))
+			}
+			events := []string{}
+			s.RegisterDestroyFunc(func() { events = append(events, "destroy") })
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			prepared := s.PrepareRun()
+			switch {
+			case tc.legacy:
+				err = prepared.RunWithContext(ctx)
+			case tc.nilDrain:
+				err = prepared.RunWithContextAndDrain(ctx, nil)
+			default:
+				err = prepared.RunWithContextAndDrain(ctx, func(started bool) { a.Equal(!tc.early, started); events = append(events, "drain") })
+			}
+			if tc.early || tc.late {
+				a.ErrorContains(err, expectedErr.Error())
+			} else {
+				a.NoError(err)
+			}
+			if tc.legacy || tc.nilDrain {
+				a.Equal([]string{"destroy"}, events)
+			} else {
+				a.Equal([]string{"drain", "destroy"}, events)
+			}
+		})
+	}
+}
+
+func TestRunWithContextHookErrorWithoutListener(t *testing.T) {
+	for _, callback := range []bool{false, true} {
+		t.Run(fmt.Sprintf("callback=%t", callback), func(t *testing.T) {
+			s, _, a := newMaster(t)
+			s.SecureServingInfo = nil
+			sentinel := errors.New("hook failure without a native listener")
+			a.NoError(s.AddPreShutdownHook("no-listener-failure", func() error { return sentinel }))
+			events := []string{}
+			s.RegisterDestroyFunc(func() { events = append(events, "destroy") })
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			prepared := s.PrepareRun()
+			done := make(chan error, 1)
+			go func() {
+				if callback {
+					done <- prepared.RunWithContextAndDrain(ctx, func(started bool) { a.True(started); events = append(events, "drain") })
+				} else {
+					done <- prepared.RunWithContext(ctx)
+				}
+			}()
+			select {
+			case err := <-done:
+				a.ErrorContains(err, sentinel.Error())
+				for _, signal := range []lifecycleSignal{s.lifecycleSignals.PreShutdownHooksStopped, s.lifecycleSignals.InFlightRequestsDrained, s.lifecycleSignals.HTTPServerStoppedListening} {
+					select {
+					case <-signal.Signaled():
+					default:
+						t.Errorf("native shutdown signal %s remained open", signal.Name())
+					}
+				}
+				if callback {
+					a.Equal([]string{"drain", "destroy"}, events)
+				} else {
+					a.Equal([]string{"destroy"}, events)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("hook failure waited on nonexistent native listener completion channels")
+			}
+		})
+	}
 }

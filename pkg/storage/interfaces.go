@@ -458,3 +458,11 @@ func PrepareKey(resourcePrefix, key string, recursive bool) (string, error) {
 // A nil ReverseKeyFunc indicates that identity cannot be derived from the
 // key and callers must fall back to decoding the stored object.
 type ReverseKeyFunc func(key string) (name string, namespace string, err error)
+
+// BackendOwnedPagination identifies stores whose continuation tokens carry
+// backend-specific snapshot or key validation. Cachers must delegate both the
+// first limited page and every continuation to preserve that authority.
+// Stores that do not implement this optional capability retain cache pagination.
+type BackendOwnedPagination interface {
+	OwnsListPagination() bool
+}

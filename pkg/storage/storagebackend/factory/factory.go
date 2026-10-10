@@ -18,11 +18,17 @@ package factory
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/etcd3/metrics"
+	mysqlstorage "k8s.io/apiserver/pkg/storage/mysqls/mysql"
+	"k8s.io/apiserver/pkg/storage/sqlite"
+	"k8s.io/apiserver/pkg/storage/sqlstorage"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 )
 
@@ -32,6 +38,10 @@ type DestroyFunc func()
 // Create creates a storage backend based on given config.
 func Create(c storagebackend.ConfigForResource, newFunc, newListFunc func() runtime.Object, reverseKeyFunc storage.ReverseKeyFunc, resourcePrefix string) (storage.Interface, DestroyFunc, error) {
 	switch c.Type {
+	case storagebackend.StorageTypeMysql:
+		return newMysqlStorage(c, newFunc, newListFunc, reverseKeyFunc, resourcePrefix)
+	case storagebackend.StorageTypeSqlite:
+		return newSqliteStorage(c, newFunc, newListFunc, reverseKeyFunc, resourcePrefix)
 	case storagebackend.StorageTypeETCD2:
 		return nil, nil, fmt.Errorf("%s is no longer a supported storage backend", c.Type)
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
@@ -44,6 +54,12 @@ func Create(c storagebackend.ConfigForResource, newFunc, newListFunc func() runt
 // CreateHealthCheck creates a healthcheck function based on given config.
 func CreateHealthCheck(c storagebackend.Config, stopCh <-chan struct{}) (func() error, error) {
 	switch c.Type {
+	case storagebackend.StorageTypeMysql, storagebackend.StorageTypeSqlite:
+		timeout := c.HealthcheckTimeout
+		if timeout == 0 {
+			timeout = storagebackend.DefaultHealthcheckTimeout
+		}
+		return newSQLCheck(c, timeout, stopCh)
 	case storagebackend.StorageTypeETCD2:
 		return nil, fmt.Errorf("%s is no longer a supported storage backend", c.Type)
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
@@ -55,6 +71,12 @@ func CreateHealthCheck(c storagebackend.Config, stopCh <-chan struct{}) (func() 
 
 func CreateReadyCheck(c storagebackend.Config, stopCh <-chan struct{}) (func() error, error) {
 	switch c.Type {
+	case storagebackend.StorageTypeMysql, storagebackend.StorageTypeSqlite:
+		timeout := c.ReadycheckTimeout
+		if timeout == 0 {
+			timeout = storagebackend.DefaultReadinessTimeout
+		}
+		return newSQLCheck(c, timeout, stopCh)
 	case storagebackend.StorageTypeETCD2:
 		return nil, fmt.Errorf("%s is no longer a supported storage backend", c.Type)
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
@@ -66,6 +88,8 @@ func CreateReadyCheck(c storagebackend.Config, stopCh <-chan struct{}) (func() e
 
 func CreateProber(c storagebackend.Config) (Prober, error) {
 	switch c.Type {
+	case storagebackend.StorageTypeMysql, storagebackend.StorageTypeSqlite:
+		return newSQLProberMonitor(c)
 	case storagebackend.StorageTypeETCD2:
 		return nil, fmt.Errorf("%s is no longer a supported storage backend", c.Type)
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
@@ -77,6 +101,8 @@ func CreateProber(c storagebackend.Config) (Prober, error) {
 
 func CreateMonitor(c storagebackend.Config) (metrics.Monitor, error) {
 	switch c.Type {
+	case storagebackend.StorageTypeMysql, storagebackend.StorageTypeSqlite:
+		return newSQLProberMonitor(c)
 	case storagebackend.StorageTypeETCD2:
 		return nil, fmt.Errorf("%s is no longer a supported storage backend", c.Type)
 	case storagebackend.StorageTypeUnset, storagebackend.StorageTypeETCD3:
@@ -90,4 +116,60 @@ func CreateMonitor(c storagebackend.Config) (metrics.Monitor, error) {
 type Prober interface {
 	Probe(ctx context.Context) error
 	Close() error
+}
+
+func openSQLPool(c storagebackend.Config) (*sql.DB, error) {
+	var dsn, name string
+	var err error
+	switch c.Type {
+	case storagebackend.StorageTypeMysql:
+		dsn, err = mysqlDSN(c.Mysql)
+		name = "mysql"
+	case storagebackend.StorageTypeSqlite:
+		dsn, err = sqliteDSN(c.Sqlite)
+		name = "sqlite3"
+	default:
+		return nil, fmt.Errorf("unknown storage type: %s", c.Type)
+	}
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open(name, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("SQL storage connection configuration failed; credentials suppressed")
+	}
+	// A private in-memory SQLite database is per native connection. One connection
+	// retains its schema throughout this pool's lifetime; file databases allow four.
+	if c.Type == storagebackend.StorageTypeSqlite && (strings.HasPrefix(dsn, ":memory:") || strings.Contains(dsn, "mode=memory")) {
+		db.SetMaxOpenConns(1)
+	} else {
+		db.SetMaxOpenConns(4)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), sqlDriverTimeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("SQL storage connection failed; credentials suppressed")
+	}
+	return db, nil
+}
+func newSQLStorage(c storagebackend.ConfigForResource, newFunc, newListFunc func() runtime.Object, reverseKeyFunc storage.ReverseKeyFunc, resourcePrefix string) (storage.Interface, DestroyFunc, error) {
+	db, err := openSQLPool(c.Config)
+	if err != nil {
+		return nil, nil, err
+	}
+	options := sqlstorage.Options{Prefix: c.Prefix, ResourcePrefix: resourcePrefix, Codec: c.Codec, Transformer: c.Transformer, NewFunc: newFunc, NewListFunc: newListFunc, ReverseKeyFunc: reverseKeyFunc, EventsHistoryWindow: c.EventsHistoryWindow}
+	var store *sqlstorage.Store
+	if c.Type == storagebackend.StorageTypeMysql {
+		store, err = mysqlstorage.New(db, options)
+	} else {
+		store, err = sqlite.New(db, options)
+	}
+	if err != nil {
+		_ = db.Close()
+		return nil, nil, err
+	}
+	var once sync.Once
+	destroy := func() { once.Do(func() { _ = store.Close(); _ = db.Close() }) }
+	return store, destroy, nil
 }

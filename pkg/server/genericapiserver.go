@@ -534,12 +534,27 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 // |                               |
 // |      HTTPServerStoppedListening (httpServerStoppedListeningCh)
 func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
+	return s.RunWithContextAndDrain(ctx, nil)
+}
+
+// RunWithContextAndDrain runs the server and calls drain before destroying shared
+// resources on every return path. postStartHooksStarted is true only after all
+// native post-start hooks have been scheduled. The callback must join any extra
+// users of server resources; it must not wait for this method to return. A nil
+// callback preserves RunWithContext behavior.
+func (s preparedGenericAPIServer) RunWithContextAndDrain(ctx context.Context, drain func(postStartHooksStarted bool)) error {
+	postStartHooksStarted := false
 	stopCh := ctx.Done()
 	delayedStopCh := s.lifecycleSignals.AfterShutdownDelayDuration
 	shutdownInitiatedCh := s.lifecycleSignals.ShutdownInitiated
 
-	// Clean up resources on shutdown.
+	// External handlers must release shared resources before native destruction.
 	defer s.Destroy()
+	defer func() {
+		if drain != nil {
+			drain(postStartHooksStarted)
+		}
+	}()
 
 	// If UDS profiling is enabled, start a local http server listening on that socket
 	if s.UnprotectedDebugSocket != nil {
@@ -623,13 +638,19 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	postStartHooksStarted = true
 
 	httpServerStoppedListeningCh := s.lifecycleSignals.HTTPServerStoppedListening
-	go func() {
-		<-listenerStoppedCh
+	if listenerStoppedCh == nil {
+		// Successful startup may have no secure listener to observe or join.
 		httpServerStoppedListeningCh.Signal()
-		klog.V(1).InfoS("[graceful-termination] shutdown event", "name", httpServerStoppedListeningCh.Name())
-	}()
+	} else {
+		go func() {
+			<-listenerStoppedCh
+			httpServerStoppedListeningCh.Signal()
+			klog.V(1).InfoS("[graceful-termination] shutdown event", "name", httpServerStoppedListeningCh.Name())
+		}()
+	}
 
 	// we don't accept new request as soon as both ShutdownDelayDuration has
 	// elapsed and preshutdown hooks have completed.
@@ -725,9 +746,8 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 		}()
 		err = s.RunPreShutdownHooks()
 	}()
-	if err != nil {
-		return err
-	}
+	// Hook errors do not release the obligation to join native handlers.
+	// Preserve the error through normal shutdown and the deferred external drain.
 
 	// Wait for all requests in flight to drain, bounded by the RequestTimeout variable.
 	<-drainedCh.Signaled()
@@ -738,11 +758,15 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 	}
 
 	// wait for stoppedCh that is closed when the graceful termination (server.Shutdown) is finished.
-	<-listenerStoppedCh
-	<-stoppedCh
+	if listenerStoppedCh != nil {
+		<-listenerStoppedCh
+	}
+	if stoppedCh != nil {
+		<-stoppedCh
+	}
 
 	klog.V(1).Info("[graceful-termination] apiserver is exiting")
-	return nil
+	return err
 }
 
 // NonBlockingRun spawns the secure http server. An error is

@@ -35,6 +35,9 @@ const (
 	StorageTypeETCD2 = "etcd2"
 	StorageTypeETCD3 = "etcd3"
 
+	StorageTypeMysql  = "mysql"
+	StorageTypeSqlite = "sqlite"
+
 	DefaultCompactInterval      = 5 * time.Minute
 	DefaultDBMetricPollInterval = 30 * time.Second
 	DefaultEventsHistoryWindow  = 75 * time.Second
@@ -60,6 +63,9 @@ type TransportConfig struct {
 type Config struct {
 	// Type defines the type of storage backend. Default ("") is "etcd3".
 	Type string
+
+	Mysql  MysqlConfig
+	Sqlite SqliteConfig
 	// Prefix is the prefix to all keys passed to storage.Interface methods.
 	Prefix string
 	// Transport holds all connection related info, i.e. equal TransportConfig means equal servers we talk to.
@@ -93,6 +99,24 @@ type Config struct {
 	// StorageObjectCountTracker is used to keep track of the total
 	// number of objects in the storage per resource.
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
+}
+
+// MysqlConfig contains the connection and legacy list inputs for MySQL.
+// ServerList holds native driver DSNs. The current single-instance backend
+// accepts one database endpoint; credentials must never be logged.
+type MysqlConfig struct {
+	ServerList []string
+	Debug      bool
+	// ListDefaultLimit is retained as an input; API limit zero remains unlimited.
+	ListDefaultLimit int
+}
+
+// SqliteConfig contains the native SQLite DSN and legacy list inputs.
+type SqliteConfig struct {
+	DSN   string
+	Debug bool
+	// ListDefaultLimit is retained as an input; API limit zero remains unlimited.
+	ListDefaultLimit int
 }
 
 // ConfigForResource is a Config specialized to a particular `schema.GroupResource`

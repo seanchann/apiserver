@@ -129,6 +129,12 @@ func (c *CacheDelegator) Get(ctx context.Context, key string, opts storage.GetOp
 }
 
 func (c *CacheDelegator) GetList(ctx context.Context, key string, opts storage.ListOptions, listObj runtime.Object) error {
+	// Backend-owned cursors must reach their validator before standard token
+	// parsing or cache snapshot routing. Delegate first pages as well so cache
+	// tokens cannot bypass backend-specific prefix and raw-key guarantees.
+	if pagination, ok := c.storage.(storage.BackendOwnedPagination); ok && pagination.OwnsListPagination() && (opts.Predicate.Limit > 0 || opts.Predicate.Continue != "") {
+		return c.storage.GetList(ctx, key, opts, listObj)
+	}
 	_, _, err := storage.ValidateListOptions(c.cacher.resourcePrefix, c.cacher.versioner, opts)
 	if err != nil {
 		return err

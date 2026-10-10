@@ -233,6 +233,8 @@ func RunServer(
 		return nil, nil, fmt.Errorf("listener must not be nil")
 	}
 
+	waitForHandlers := trackServerHandlers(server)
+
 	// Shutdown server gracefully.
 	serverShutdownCh, listenerStoppedCh := make(chan struct{}), make(chan struct{})
 	go func() {
@@ -243,7 +245,13 @@ func RunServer(
 		err := server.Shutdown(ctx)
 		if err != nil {
 			klog.Errorf("Failed to shutdown server: %v", err)
+			// A graceful timeout leaves active connections open. Close them
+			// to unblock slow stream writes, then join their handler cleanup.
+			if closeErr := server.Close(); closeErr != nil {
+				klog.Errorf("Failed to close server connections: %v", closeErr)
+			}
 		}
+		waitForHandlers()
 	}()
 
 	go func() {
