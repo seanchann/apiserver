@@ -272,6 +272,44 @@ legacy SQLite `keyval` or MySQL JSON tables without an explicit completed offlin
 migration. It never automatically migrates or discards source tables. An empty
 new database takes the normal initialization path without scanning object data.
 
+
+### Mandatory SQLite WAL and durability
+
+Production SQL factory pools, including health and monitoring pools, use
+`github.com/mattn/go-sqlite3 v1.14.52`, which bundles SQLite 3.53.4. Startup checks
+the actual engine version and requires SQLite 3.51.3 or later; earlier backported
+releases are intentionally outside this version policy. System-library builds
+must satisfy the same runtime check. See the [driver release][sqlite-driver]
+and [SQLite WAL-reset fix][sqlite-wal].
+
+A plain file path is sufficient. The factory supplies `_journal_mode=WAL` and
+`_synchronous=FULL` for every native connection, including connections opened
+later as the pool grows. Explicit `EXTRA` synchronization is also supported.
+All values of `_journal_mode`/`_journal` and `_synchronous`/`_sync` are checked;
+conflicting aliases, duplicate weak values, rollback-journal modes and weaker
+synchronization settings are rejected. Startup verifies effective WAL and at
+least FULL synchronization, closes failed pools, and reports errors without DSNs.
+The pool keeps four connections, deferred transactions and its bounded busy timeout.
+
+In-memory databases are unsupported by the production factory because they
+cannot enter WAL mode. Existing file databases switch to WAL during startup;
+stop old instances before switching. Use local storage that supports SQLite WAL
+and allow creation of `-wal` and `-shm` files in the database directory. An
+unsupported environment fails startup rather than falling back to rollback
+journaling. This changes journal configuration, not the schema migration rules
+above. Low-level `sqlite.New(*sql.DB, ...)` callers still own their pool settings.
+
+WAL permits a writer to commit while readers retain snapshots, avoiding the
+rollback-journal dependency between watch readers and compactor commits. It
+still allows only one writer, so busy errors remain possible. FULL synchronization
+adds a WAL sync to each commit; no custom checkpoint scheduler is introduced.
+When backing up a running database, use SQLite's backup API or another documented
+consistent-backup procedure; copying the database file alone can omit committed
+WAL content. Keep WAL state with the database during crash recovery.
+
+[sqlite-driver]: https://github.com/mattn/go-sqlite3/releases/tag/v1.14.52
+[sqlite-wal]: https://www.sqlite.org/wal.html
+
 ### Offline migration and configuration
 
 Stop **all** old and new writers, including background jobs, and verify a backup

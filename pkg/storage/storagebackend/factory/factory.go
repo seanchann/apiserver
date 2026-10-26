@@ -20,7 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -138,18 +137,19 @@ func openSQLPool(c storagebackend.Config) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("SQL storage connection configuration failed; credentials suppressed")
 	}
-	// A private in-memory SQLite database is per native connection. One connection
-	// retains its schema throughout this pool's lifetime; file databases allow four.
-	if c.Type == storagebackend.StorageTypeSqlite && (strings.HasPrefix(dsn, ":memory:") || strings.Contains(dsn, "mode=memory")) {
-		db.SetMaxOpenConns(1)
-	} else {
-		db.SetMaxOpenConns(4)
-	}
+	// SQLite pools serve file databases only; WAL validation rejects memory.
+	db.SetMaxOpenConns(4)
 	ctx, cancel := context.WithTimeout(context.Background(), sqlDriverTimeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("SQL storage connection failed; credentials suppressed")
+	}
+	if c.Type == storagebackend.StorageTypeSqlite {
+		if err := checkSQLitePool(ctx, db); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
 	}
 	return db, nil
 }
